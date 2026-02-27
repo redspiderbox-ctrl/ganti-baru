@@ -69,6 +69,7 @@ header span { font-size: 12px; opacity: 0.9; font-weight: 400; background: rgba(
     flex-grow: 1;
 }
 
+/* Default: Scanner di dalam card (posisi normal) */
 #reader-container {
     display: none;
     margin-bottom: 15px;
@@ -146,7 +147,6 @@ input:focus {
 .btn-action:hover { background: #E5E7EB; }
 .btn-scan { background: var(--text-dark); color: #fff; }
 .btn-scan.active { background: var(--danger); }
-.btn-scan.cooldown { background: var(--text-gray); pointer-events: none; }
 
 /* TABLE */
 .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin-top: 5px; }
@@ -182,6 +182,7 @@ input[type="number"] { width: 80px; text-align: center; font-weight: 600; paddin
     }
 }
 
+/* Garis Laser */
 .scanner-line {
     position: absolute;
     top: 50%;
@@ -195,25 +196,35 @@ input[type="number"] { width: 80px; text-align: center; font-weight: 600; paddin
     animation: laserMove 1.5s infinite linear;
 }
 
-/* Overlay Cooldown (Layar Putih/Transparan) */
-.cooldown-overlay {
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(255, 255, 255, 0.7);
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--primary);
-    font-weight: bold;
-    font-size: 1.5rem;
-    backdrop-filter: blur(2px);
+/* Class untuk menghentikan animasi garis */
+.scanner-line.paused {
+    animation-play-state: paused;
+    opacity: 0;
+    transition: opacity 0.3s;
 }
 
 @keyframes laserMove {
     0% { top: 20%; opacity: 0.5; }
     50% { top: 80%; opacity: 1; }
     100% { top: 20%; opacity: 0.5; }
+}
+
+/* Overlay Cooldown */
+#cooldown-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    display: none; /* Default hidden */
+}
+#cooldown-text {
+    color: #fff;
+    font-size: 2rem;
+    font-weight: bold;
+    font-family: monospace;
 }
 
 /* FOOTER ACTIONS */
@@ -233,11 +244,15 @@ input[type="number"] { width: 80px; text-align: center; font-weight: 600; paddin
 <!-- Container untuk Scanner -->
 <div id="reader-container">
     <div id="reader"></div>
+    <!-- Overlay untuk hitung mundur -->
+    <div id="cooldown-overlay">
+        <div id="cooldown-text">3</div>
+    </div>
 </div>
 
 <header>
     <h2>📦 Stock Opname</h2>
-    <span>v3.3 Delay Logic</span>
+    <span>v3.3 Delay Scan</span>
 </header>
 
 <div class="main-content-wrapper">
@@ -310,7 +325,10 @@ input[type="number"] { width: 80px; text-align: center; font-weight: 600; paddin
 const tbody = document.getElementById("tbody");
 const storageKey = "opnameDataModern";
 const readerContainer = document.getElementById("reader-container");
-const btnScan = document.getElementById("btnScan");
+const cooldownOverlay = document.getElementById("cooldown-overlay");
+const cooldownText = document.getElementById("cooldown-text");
+const scanLine = document.getElementById("scan-line-overlay"); // Akan dibuat dynamically
+
 let html5QrCode = null;
 let isScanning = false;
 let isCooldown = false; // Status jeda scan
@@ -420,8 +438,10 @@ function toggleScan(){
     
     readerContainer.style.display = "block";
     
-    if(!document.getElementById("scan-line-overlay")) {
-        const line = document.createElement("div");
+    // Buat garis laser jika belum ada
+    let line = document.getElementById("scan-line-overlay");
+    if(!line) {
+        line = document.createElement("div");
         line.id = "scan-line-overlay";
         line.className = "scanner-line";
         document.getElementById("reader").appendChild(line);
@@ -446,8 +466,10 @@ function toggleScan(){
         onScanFailure
     ).then(() => {
         isScanning = true;
-        btnScan.innerText = "❌ Stop";
-        btnScan.classList.add("active");
+        isCooldown = false;
+        const btn = document.getElementById("btnScan");
+        btn.innerText = "❌ Stop";
+        btn.classList.add("active");
         
         if(window.innerWidth <= 768) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -459,7 +481,7 @@ function toggleScan(){
 }
 
 function onScanSuccess(decodedText) {
-    // Jika sedang cooldown, abaikan scan
+    // Jika sedang Cooldown, abaikan scan baru
     if(isCooldown) return;
 
     // Mainkan Suara
@@ -468,22 +490,24 @@ function onScanSuccess(decodedText) {
         beepSound.play();
     } catch(e){ console.log("Audio blocked"); }
 
+    // Isi search box & filter
     const searchInput = document.getElementById("search");
     searchInput.value = decodedText;
     filterTable();
     
+    // Logika Penambahan Otomatis (+1)
     const visibleRows = [...tbody.querySelectorAll("tr")].filter(r => r.style.display !== "none");
     
     if(visibleRows.length === 1){
         const row = visibleRows[0];
         const inputFisik = row.querySelector("input");
         
-        // Tambah nilai +1
+        // Tambah nilai
         let currentVal = parseInt(inputFisik.value) || 0;
         inputFisik.value = currentVal + 1;
         calc(inputFisik);
         
-        // Highlight
+        // Visual Feedback
         row.classList.remove("found-highlight");
         void row.offsetWidth; 
         row.classList.add("found-highlight");
@@ -492,7 +516,7 @@ function onScanSuccess(decodedText) {
         if(navigator.vibrate) navigator.vibrate(100);
         
         // === AKTIFKAN COOLDOWN 3 DETIK ===
-        activateCooldown(3);
+        startCooldown(3);
 
     } else if(visibleRows.length > 1) {
         showToast(`⚠️ Ketemu ${visibleRows.length} part`);
@@ -501,39 +525,33 @@ function onScanSuccess(decodedText) {
     }
 }
 
-function onScanFailure(error) { }
-
-// === FUNGSI COOLDOWN ===
-function activateCooldown(seconds) {
+// Fungsi Cooldown 3 Detik
+function startCooldown(seconds) {
     isCooldown = true;
     
-    // Tambah visual overlay "Tunggu..."
-    const readerDiv = document.getElementById("reader");
-    const overlay = document.createElement("div");
-    overlay.id = "cooldown-overlay";
-    overlay.className = "cooldown-overlay";
-    overlay.innerText = "Tunggu..."; // Teks default
-    readerDiv.appendChild(overlay);
-
-    // Update tombol
-    btnScan.innerText = `⏳ ${seconds}s`;
-    btnScan.classList.add("cooldown");
-
-    let remaining = seconds;
+    // Hentikan animasi garis
+    const line = document.getElementById("scan-line-overlay");
+    if(line) line.classList.add("paused");
+    
+    // Tampilkan overlay hitungan mundur
+    cooldownOverlay.style.display = "flex";
+    let count = seconds;
+    cooldownText.innerText = count;
+    
     const interval = setInterval(() => {
-        remaining--;
-        if(overlay.isConnected) overlay.innerText = `${remaining}s`;
-        btnScan.innerText = `⏳ ${remaining}s`;
-
-        if(remaining <= 0) {
+        count--;
+        cooldownText.innerText = count;
+        
+        if(count <= 0) {
             clearInterval(interval);
             isCooldown = false;
-            if(overlay.isConnected) overlay.remove();
-            btnScan.innerText = "❌ Stop";
-            btnScan.classList.remove("cooldown");
+            cooldownOverlay.style.display = "none";
+            if(line) line.classList.remove("paused");
         }
     }, 1000);
 }
+
+function onScanFailure(error) { }
 
 function stopScan() {
     if(html5QrCode && isScanning) {
@@ -541,14 +559,15 @@ function stopScan() {
             readerContainer.style.display = "none";
             const line = document.getElementById("scan-line-overlay");
             if(line) line.remove();
-            const overlay = document.getElementById("cooldown-overlay");
-            if(overlay) overlay.remove();
             
-            btnScan.innerText = "📷 Scan";
-            btnScan.classList.remove("active");
-            btnScan.classList.remove("cooldown");
+            // Reset Cooldown UI
+            cooldownOverlay.style.display = "none";
+            isCooldown = false;
+            
+            const btn = document.getElementById("btnScan");
+            btn.innerText = "📷 Scan";
+            btn.classList.remove("active");
             isScanning = false;
-            isCooldown = false; // Reset status
         }).catch(err => console.error(err));
     }
 }
