@@ -1,523 +1,661 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cetak Label Part (QR Code)</title>
-    
-    <!-- Pustaka Eksternal -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <!-- Pustaka QR Code -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        surface: '#fafaf9',
-                        paper: '#ffffff',
-                        ink: '#1c1917',
-                        muted: '#78716c',
-                        accent: '#dc2626',
-                        accentDark: '#991b1b',
-                        border: '#a8a29e',
-                        borderLight: '#e7e5e4',
-                        success: '#16a34a',
-                        warning: '#ca8a04',
-                    },
-                    fontFamily: {
-                        display: ['Space Grotesk', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace'],
-                    }
-                }
-            }
-        }
-    </script>
-    
-    <style>
-        :root {
-            --label-width: 47mm;
-            --label-height: 14mm;
-            --gap-x: 4mm;
-            --gap-y: 8mm;
-            --margin-x: 5mm;
-            --margin-y: 10mm;
-            --qr-size: 10mm;
-        }
-        
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        body {
-            font-family: 'Space Grotesk', sans-serif;
-            background: linear-gradient(135deg, #292524 0%, #1c1917 50%, #0c0a09 100%);
-            min-height: 100vh;
-            color: #1c1917;
-        }
-        
-        body::before {
-            content: '';
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            opacity: 0.03; pointer-events: none; z-index: 0;
-        }
-        
-        .orb {
-            position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.15; pointer-events: none; z-index: 0;
-        }
-        .orb-1 { width: 400px; height: 400px; background: #dc2626; top: -100px; right: -100px; animation: float 20s ease-in-out infinite; }
-        .orb-2 { width: 300px; height: 300px; background: #f59e0b; bottom: -50px; left: -50px; animation: float 25s ease-in-out infinite reverse; }
-        
-        @keyframes float { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(30px, -30px) scale(1.05); } 66% { transform: translate(-20px, 20px) scale(0.95); } }
-        
-        .a4-paper {
-            width: 210mm; max-width: 100%; min-height: 297mm;
-            background: #ffffff;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
-            margin: 20px 0; padding: 10mm; position: relative; border-radius: 2px;
-        }
-        
-        .label-card {
-            border: 2px solid #1c1917; border-radius: 1px;
-            aspect-ratio: 47 / 14;
-            position: relative; background: #ffffff;
-            transition: all 0.2s ease;
-            display: flex; align-items: center;
-            overflow: hidden;
-        }
-        .label-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); transform: translateY(-1px); }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Opname Modern</title>
 
-        .label-content {
-            display: flex;
-            width: 100%;
-            height: 100%;
-            align-items: center;
-        }
-        
-        .qr-section {
-            width: 10mm;
-            height: 10mm;
-            flex-shrink: 0;
-            margin-left: 2mm;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #fff;
-        }
-        
-        .qr-section img, .qr-section canvas {
-            width: 100%;
-            height: 100%;
-            image-rendering: pixelated;
-        }
+<!-- LIBRARY -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
 
-        .text-section {
-            flex-grow: 1;
-            padding: 0 2mm;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            border-left: 1px solid #e7e5e4;
-            margin-left: 2mm;
-            height: 100%;
-        }
-        
-        .upload-area { position: relative; overflow: hidden; }
-        .upload-area::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.1), transparent);
-            transition: left 0.5s ease;
-        }
-        .upload-area:hover::before { left: 100%; }
-        
-        .toast { animation: slideIn 0.3s ease; }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        
-        .label-card { opacity: 0; animation: fadeUp 0.4s ease forwards; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #e7e5e4; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: #a8a29e; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #78716c; }
-        
-        @media print {
-            body { background: white; }
-            .no-print { display: none !important; }
-            .a4-paper { box-shadow: none; margin: 0; }
-        }
+<style>
+:root {
+    --primary: #DC2626;      /* Merah */
+    --primary-dark: #B91C1C; /* Merah Gelap */
+    --bg: #F3F4F6;           /* Abu Terang */
+    --card: #FFFFFF;         /* Putih */
+    --text-dark: #1F2937;    /* Hitam Pekat */
+    --text-gray: #6B7280;    /* Abu Text */
+    --border: #E5E7EB;       /* Abu Border */
+    --success: #16A34A;
+    --danger: #DC2626;
+    --neutral: #9CA3AF;
+}
 
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-    </style>
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text-dark);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* HEADER */
+header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: #fff;
+    padding: 24px 32px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    z-index: 10;
+}
+header h2 { margin: 0; letter-spacing: 0.5px; font-weight: 700; display:flex; align-items:center; gap:10px; font-size: 1.2rem; }
+header span { font-size: 12px; opacity: 0.9; font-weight: 400; background: rgba(0,0,0,0.2); padding: 4px 12px; border-radius: 20px; }
+
+/* MAIN CONTAINER */
+.container { padding: 20px; max-width: 1400px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+.card {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+}
+
+/* FLEX ORDER MAGIC FOR MOBILE */
+.main-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+#reader-container {
+    display: none;
+    margin-bottom: 15px;
+    position: relative;
+}
+
+/* Mobile Specific: Pindahkan Scanner ke paling atas */
+@media (max-width: 768px) {
+    body { display: flex; flex-direction: column; }
+    #reader-container {
+        order: -1; 
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: #000;
+        padding: 0;
+        margin: 0;
+        border-radius: 0;
+    }
+    header { order: 0; }
+    .container { order: 1; padding: 15px; }
+    header h2 { font-size: 1rem; }
+    .controls { grid-template-columns: 1fr; }
+}
+
+/* CONTROLS AREA */
+.controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+.input-group { display: flex; flex-direction: column; gap: 6px; }
+.label { font-size: 11px; font-weight: 600; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px; }
+
+input[type="text"], input[type="date"], input[type="number"], input[type="file"] {
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    transition: all 0.2s;
+    background: #FAFAFA;
+    width: 100%;
+    box-sizing: border-box;
+}
+input:focus {
+    border-color: var(--primary);
+    background: #fff;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+/* BUTTONS */
+.btn {
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2); }
+.btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #15803d; }
+.btn-danger { background: transparent; color: var(--danger); border: 2px solid var(--border); }
+.btn-danger:hover { background: #FEF2F2; border-color: var(--danger); }
+.btn-action { background: #F3F4F6; color: var(--text-dark); border: 1px solid var(--border); }
+.btn-action:hover { background: #E5E7EB; }
+.btn-scan { background: var(--text-dark); color: #fff; }
+.btn-scan.active { background: var(--danger); }
+.btn-scan.cooldown { background: var(--text-gray); pointer-events: none; }
+
+/* TABLE */
+.table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin-top: 5px; }
+table { width: 100%; border-collapse: collapse; min-width: 800px; }
+th { background: #F9FAFB; padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 700; color: var(--text-gray); text-transform: uppercase; border-bottom: 2px solid var(--border); }
+td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; background: #fff; }
+tr:nth-child(even) td { background: #F9FAFB; }
+tr:hover td { background: #FEF2F2; }
+
+.part-id { font-weight: 600; color: var(--text-dark); }
+.qty-system { font-family: 'Courier New', monospace; font-weight: 600; }
+input[type="number"] { width: 80px; text-align: center; font-weight: 600; padding: 8px; border-radius: 6px; }
+
+/* Badges */
+.badge { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-block; min-width: 40px; text-align: center; }
+.badge.plus { background: #DCFCE7; color: var(--success); }
+.badge.minus { background: #FEE2E2; color: var(--danger); }
+.badge.zero { background: #F3F4F6; color: var(--neutral); }
+
+/* SCANNER STYLING */
+#reader {
+    width: 100%;
+    border: none;
+    overflow: hidden;
+    background: #000;
+    position: relative;
+}
+
+@media (max-width: 768px) {
+    #reader {
+        border-radius: 0;
+        border-bottom: 4px solid var(--text-dark);
+    }
+}
+
+.scanner-line {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 0, 0, 0.8);
+    box-shadow: 0 0 20px 5px rgba(255, 0, 0, 0.6);
+    z-index: 99;
+    pointer-events: none;
+    animation: laserMove 1.5s infinite linear;
+}
+
+/* Overlay Cooldown (Layar Putih/Transparan) */
+.cooldown-overlay {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    font-weight: bold;
+    font-size: 1.5rem;
+    backdrop-filter: blur(2px);
+}
+
+@keyframes laserMove {
+    0% { top: 20%; opacity: 0.5; }
+    50% { top: 80%; opacity: 1; }
+    100% { top: 20%; opacity: 0.5; }
+}
+
+/* FOOTER ACTIONS */
+.footer-actions { margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
+
+/* TOAST */
+#toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--text-dark); color: #fff; padding: 12px 24px; border-radius: 50px; font-weight: 500; box-shadow: 0 10px 20px rgba(0,0,0,0.2); opacity: 0; transition: opacity 0.3s, transform 0.3s; z-index: 9999; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+
+.found-highlight { animation: highlightFade 2s; }
+@keyframes highlightFade { 0% { background-color: #FEF2F2; } 100% { background-color: transparent; } }
+</style>
 </head>
-<body class="flex justify-center p-4 md:p-8 relative">
-    
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-    
-    <div class="a4-paper relative z-10">
-        <div class="max-w-full mx-auto">
+
+<body>
+
+<!-- Container untuk Scanner -->
+<div id="reader-container">
+    <div id="reader"></div>
+</div>
+
+<header>
+    <h2>📦 Stock Opname</h2>
+    <span>v3.3 Delay Logic</span>
+</header>
+
+<div class="main-content-wrapper">
+    <div class="container">
+        <div class="card">
             
-            <header class="no-print bg-stone-50 border-2 border-stone-400 rounded p-4 mb-4">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                    <div>
-                        <h1 class="font-display text-xl font-bold text-ink tracking-tight">Sistem Cetak Label Part ( POLYTRON-KUPANG )</h1>
-                        <p class="text-sm text-muted mt-1">Multi-upload dengan layout A4 & QR Code</p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-stone-200 rounded text-xs font-mono text-muted">
-                            <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
-                            Siap
-                        </span>
-                    </div>
+            <div class="controls">
+                <div class="input-group">
+                    <span class="label">Tanggal</span>
+                    <input type="date" id="tanggal">
                 </div>
-            </header>
-            
-            <!-- Control Section -->
-            <section class="no-print controls bg-stone-50 border-2 border-stone-300 rounded p-4 mb-4">
-                <div class="flex flex-col lg:flex-row gap-4">
-                    <div class="upload-area flex-1 border-2 border-dashed border-stone-400 rounded-lg p-6 text-center cursor-pointer transition-all hover:border-accent hover:bg-red-50">
-                        <input type="file" id="file-input-1" accept=".xlsx, .xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        <div class="text-3xl mb-2">
-                            <svg class="w-8 h-8 mx-auto text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                            </svg>
-                        </div>
-                        <strong class="block text-sm font-semibold text-ink">Upload Excel</strong>
-                        <p class="text-xs text-muted mt-1">Kolom: Part, Deskripsi </p>
-                        <p class="text-xs text-accent font-medium mt-1">QR Code dari Part Number</p>
-                    </div>
-                    <div class="flex flex-col gap-2 justify-center">
-                        <button id="btn-clear-1" class="hidden px-4 py-2 bg-white border-2 border-stone-300 rounded font-semibold text-sm hover:bg-stone-100 transition-all" onclick="clearData()">
-                            <span class="flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                </svg>
-                                Reset
-                            </span>
-                        </button>
-                        <button id="btn-download-1" disabled class="px-4 py-2 bg-accent text-white rounded font-semibold text-sm hover:bg-accentDark transition-all disabled:opacity-50 disabled:cursor-not-allowed" onclick="generatePDF()">
-                            <span class="flex items-center gap-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                                </svg>
-                                Download PDF
-                            </span>
-                        </button>
-                    </div>
+                
+                <div class="input-group">
+                    <span class="label">Import Excel</span>
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" style="background:none; padding:9px;">
                 </div>
-            </section>
-            
-            <div class="flex justify-between items-center mb-3 no-print">
-                <h3 class="font-semibold text-sm text-ink">Pratinjau Label (QR Code)</h3>
-                <span id="label-count-1" class="px-3 py-1 bg-stone-100 rounded-full text-xs font-mono text-muted">0 Label</span>
-            </div>
-            
-            <div class="labels-grid grid grid-cols-4 gap-[4mm]" id="labels-container-1">
-                <div class="col-span-4 text-center py-8 text-muted border-2 border-dashed border-stone-300 rounded text-sm">
-                    Upload file Excel untuk melihat pratinjau
+                
+                 <div class="input-group" style="justify-content: flex-end;">
+                    <span class="label">&nbsp;</span>
+                    <button class="btn btn-success" onclick="manualSave()">💾 Simpan</button>
                 </div>
             </div>
-            
+
+            <div class="controls">
+                <div class="input-group" style="grid-column: span 2;">
+                    <span class="label">Pencarian</span>
+                    <input type="text" id="search" placeholder="Ketik Part Number..." oninput="filterTable()">
+                </div>
+                
+                <div class="input-group" style="justify-content: flex-end;">
+                    <span class="label">&nbsp;</span>
+                    <div style="display:flex; gap:10px;">
+                        <button id="btnScan" class="btn btn-scan" onclick="toggleScan()">📷 Scan</button>
+                        <button class="btn btn-danger" onclick="clearAll()">🗑 Hapus</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:50px">NO</th>
+                            <th>PART</th>
+                            <th>Deskripsi Part</th>
+                            <th style="width:80px">QTY</th>
+                            <th style="width:100px">QTY FISIK</th>
+                            <th style="width:80px">SELISIH</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+
+            <div class="footer-actions">
+                <button class="btn btn-action" onclick="exportExcel()">⬇ Excel</button>
+                <button class="btn btn-primary" onclick="exportPDF()">⬇ PDF</button>
+            </div>
+
         </div>
     </div>
-    
-    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2"></div>
+</div>
+
+<div id="toast">Notifikasi</div>
+
+<!-- Audio Beep Base64 -->
+<audio id="successSound" src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2Onp+ej35qYF9lc4GKkJSPiIV9dG1wdn6Gj5SVkIuFfHRvcXaBh46VkI2Jgnx0cXd9hYyTkomHgXx1c3h+g4qRjoqGgHx2dnh/hYmPioeEfnd2eX6EioyJhoN/eHZ4foOIi4mGgn98eHl9goiKiIWBf3x4eX2Bh4qHhIB/fHp6foGGioaDf356e3uAhImHgn9+e3x+gISJhYJ/fXt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhYJ/fHt8foCEiIWCf3x7fH6AhIiFgn98e3x+gISIhQ=="></audio>
 
 <script>
-    // === STATE ===
-    let labelsToPrint = [];
-    
-    // === PDF CONFIG ===
-    const PDF_CFG = {
-        w: 47,
-        h: 14,
-        marginX: 5,
-        marginY: 10,
-        gapX: 4,
-        gapY: 8,
-        qrSize: 10
-    };
-    
-    // === FILE HANDLING ===
-    document.getElementById('file-input-1').addEventListener('change', (e) => {
-        if (e.target.files.length) handleFile(e.target.files[0]);
-    });
-    
-    function handleFile(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const workbook = XLSX.read(e.target.result, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const sheet = workbook.Sheets[sheetName];
-                const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-                
-                if (json.length === 0) throw new Error("File kosong");
-                
-                processData(json);
-                showToast(`Berhasil memuat ${json.length} baris data`, 'success');
-            } catch (err) {
-                showToast('Gagal membaca file: ' + err.message, 'error');
-                console.error(err);
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    }
-    
-    function processData(json) {
-        const data = json.map((row, idx) => {
-            const findKey = (keys) => {
-                const k = Object.keys(row).find(key => keys.includes(key.toLowerCase().trim()));
-                return k ? row[k] : "";
-            };
-            return {
-                id: idx,
-                part: findKey(['part', 'part number', 'kode', 'code', 'id', 'pn']) || 'N/A',
-                desc: findKey(['deskripsi', 'description', 'desc', 'nama', 'name']) || '-',
-                qty: findKey(['qty', 'quantity', 'jumlah', 'stock']) || '1'
-            };
-        });
-        
-        const labels = [];
-        
-        data.forEach(item => {
-            let q = parseInt(item.qty);
-            if (isNaN(q) || q < 1) q = 1;
+const tbody = document.getElementById("tbody");
+const storageKey = "opnameDataModern";
+const readerContainer = document.getElementById("reader-container");
+const btnScan = document.getElementById("btnScan");
+let html5QrCode = null;
+let isScanning = false;
+let isCooldown = false; // Status jeda scan
+const beepSound = document.getElementById("successSound");
+
+/* ===== INIT ===== */
+window.onload = () => {
+    document.getElementById("tanggal").value = localStorage.getItem("tanggal_mod") || new Date().toISOString().split("T")[0];
+    loadStorage();
+}
+
+/* ===== EXCEL UPLOAD ===== */
+document.getElementById("fileInput").addEventListener("change", e => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+        try {
+            const wb = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
+            const sh = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(sh, { header: 1 });
             
-            // Gandakan sesuai Qty
-            for (let i = 0; i < q; i++) {
-                labels.push({ ...item });
-            }
-        });
-        
-        labelsToPrint = labels;
-        renderLabels();
-    }
-    
-    function clearData() {
-        labelsToPrint = [];
-        document.getElementById('file-input-1').value = '';
-        renderLabels();
-        showToast('Data telah direset', 'success');
-    }
-    
-    // === QR CODE HELPER ===
-    function generateQRDataURL(text, size) {
-        const qr = qrcode(0, 'L');
-        qr.addData(text);
-        qr.make();
-        return qr.createDataURL(size, 0);
-    }
-    
-    // === RENDER LABELS ===
-    function renderLabels() {
-        const container = document.getElementById('labels-container-1');
-        const countBadge = document.getElementById('label-count-1');
-        const btnClear = document.getElementById('btn-clear-1');
-        const btnDownload = document.getElementById('btn-download-1');
-        
-        if (labelsToPrint.length === 0) {
-            container.innerHTML = `
-                <div class="col-span-4 text-center py-8 text-muted border-2 border-dashed border-stone-300 rounded text-sm">
-                    Upload file Excel untuk melihat pratinjau
-                </div>`;
-            btnDownload.disabled = true;
-            btnClear.classList.add('hidden');
-            countBadge.textContent = '0 Label';
-            return;
-        }
-        
-        btnDownload.disabled = false;
-        btnClear.classList.remove('hidden');
-        countBadge.textContent = `${labelsToPrint.length} Label`;
-        
-        const limit = 96;
-        const dataToRender = labelsToPrint.slice(0, limit);
-        
-        container.innerHTML = '';
-        
-        dataToRender.forEach((item, index) => {
-            const el = document.createElement('div');
-            el.className = 'label-card';
-            el.style.animationDelay = `${index * 20}ms`;
-            
-            const qrURL = generateQRDataURL(item.part, 2);
-            
-            el.innerHTML = `
-                <div class="label-content">
-                    <div class="qr-section">
-                        <img src="${qrURL}" alt="QR">
-                    </div>
-                    <div class="text-section">
-                        <div class="font-mono font-bold text-[10px] text-ink truncate leading-tight">${escapeHtml(item.part)}</div>
-                        <div class="text-[7px] text-muted truncate leading-tight mt-0.5">${escapeHtml(item.desc)}</div>
-                    </div>
-                </div>
-            `;
-            
-            container.appendChild(el);
-        });
-        
-        if (labelsToPrint.length > limit) {
-            const warning = document.createElement('div');
-            warning.className = 'col-span-4 text-center py-4 text-warning text-sm font-medium';
-            warning.textContent = `Menampilkan ${limit} dari ${labelsToPrint.length} label. Download PDF untuk semua label.`;
-            container.appendChild(warning);
-        }
-    }
-    
-    // === GENERATE PDF ===
-    async function generatePDF() {
-        if (!labelsToPrint.length) return;
-        
-        showToast('Membuat PDF...', 'info');
-        
-        setTimeout(() => {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF('p', 'mm', 'a4');
-            const H = 297;
-            const cfg = PDF_CFG;
-            
-            let x = cfg.marginX;
-            let y = cfg.marginY;
-            let colIndex = 0;
-            const colsPerRow = 4;
-            
-            labelsToPrint.forEach((item, i) => {
-                if (y + cfg.h > H - cfg.marginY) {
-                    doc.addPage();
-                    y = cfg.marginY;
-                    x = cfg.marginX;
-                    colIndex = 0;
-                }
+            tbody.innerHTML = "";
+            let count = 0;
+            rows.slice(1).forEach((r, i) => {
+                if(!r[1] && !r[2]) return;
+                let part = r[1] || r[0]; 
+                let desc = r[2] || r[1];
+                let qty = r[3] || r[2] || 0;
+                if(isNaN(parseInt(qty)) && !isNaN(parseInt(r[1]))) qty = r[1]; 
                 
-                if (colIndex >= colsPerRow) {
-                    y += cfg.h + cfg.gapY;
-                    x = cfg.marginX;
-                    colIndex = 0;
-                    
-                    if (y + cfg.h > H - cfg.marginY) {
-                        doc.addPage();
-                        y = cfg.marginY;
-                        x = cfg.marginX;
-                    }
-                }
-                
-                // Draw border
-                doc.setDrawColor(0);
-                doc.setLineWidth(0.5);
-                doc.rect(x, y, cfg.w, cfg.h);
-                
-                // Draw QR
-                const qr = qrcode(0, 'L');
-                qr.addData(item.part);
-                qr.make();
-                
-                const qrModuleCount = qr.getModuleCount();
-                const qrDisplaySize = cfg.qrSize;
-                const qrCellSize = qrDisplaySize / qrModuleCount;
-                
-                const qrX = x + 2;
-                const qrY = y + (cfg.h - qrDisplaySize) / 2;
-                
-                doc.setDrawColor(0);
-                doc.setFillColor(0, 0, 0);
-                
-                for (let row = 0; row < qrModuleCount; row++) {
-                    for (let col = 0; col < qrModuleCount; col++) {
-                        if (qr.isDark(row, col)) {
-                            doc.rect(
-                                qrX + col * qrCellSize, 
-                                qrY + row * qrCellSize, 
-                                qrCellSize, 
-                                qrCellSize, 
-                                'F'
-                            );
-                        }
-                    }
-                }
-                
-                // Divider line
-                doc.setDrawColor(200, 200, 200);
-                doc.setLineWidth(0.1);
-                doc.line(x + cfg.qrSize + 3, y + 2, x + cfg.qrSize + 3, y + cfg.h - 2);
-                
-                // Part Number Text
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(10);
-                doc.setTextColor(0, 0, 0);
-                
-                const textStartX = x + cfg.qrSize + 4;
-                const textWidth = cfg.w - cfg.qrSize - 6;
-                
-                const partLines = doc.splitTextToSize(item.part, textWidth);
-                doc.text(partLines[0] || '', textStartX, y + 6);
-                
-                // Description
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(6);
-                doc.setTextColor(100, 100, 100);
-                const descLines = doc.splitTextToSize(item.desc, textWidth);
-                doc.text(descLines[0] || '', textStartX, y + 10.5);
-                
-                x += cfg.w + cfg.gapX;
-                colIndex++;
+                addRow(i + 1, part, desc, parseInt(qty) || 0, 0);
+                count++;
             });
             
-            const timestamp = new Date().toISOString().slice(0, 10);
-            doc.save(`Label_QR_${timestamp}.pdf`);
-            showToast('PDF berhasil didownload!', 'success');
+            saveStorage();
+            showToast(`✅ ${count} item dimuat`);
+        } catch (err) {
+            showToast("❌ Gagal membaca file");
+            console.error(err);
+        }
+    };
+    reader.readAsArrayBuffer(e.target.files[0]);
+});
+
+/* ===== ADD ROW ===== */
+function addRow(no, part, desc, qty, fisik) {
+    const tr = document.createElement("tr");
+    part = part || "-";
+    desc = desc || "-";
+    
+    tr.innerHTML = `
+    <td style="text-align:center; font-weight:500; color:var(--text-gray)">${no}</td>
+    <td class="part-id">${part}</td>
+    <td style="color:var(--text-gray)">${desc}</td>
+    <td class="qty-system text-right">${qty}</td>
+    <td class="text-right"><input type="number" value="${fisik}" oninput="calc(this)" onclick="this.select()"></td>
+    <td class="text-right"><span class="badge zero">0</span></td>`;
+    tbody.appendChild(tr);
+    calc(tr.querySelector("input"));
+}
+
+/* ===== HITUNG SELISIH ===== */
+function calc(input) {
+    const row = input.closest("tr");
+    const qty = parseInt(row.querySelector(".qty-system").innerText) || 0;
+    const fisik = parseInt(input.value) || 0;
+    const selisih = fisik - qty;
+    
+    const el = row.querySelector(".badge");
+    el.innerText = (selisih > 0 ? "+" : "") + selisih;
+    
+    el.className = "badge " + (selisih > 0 ? "plus" : selisih < 0 ? "minus" : "zero");
+    saveStorage();
+}
+
+/* ===== SEARCH & FILTER ===== */
+function filterTable() {
+    const keyword = document.getElementById("search").value.toLowerCase();
+    let visibleCount = 0;
+    let lastVisibleRow = null;
+
+    tbody.querySelectorAll("tr").forEach(r => {
+        const part = r.cells[1].innerText.toLowerCase();
+        const desc = r.cells[2].innerText.toLowerCase();
+        const isMatch = part.includes(keyword) || desc.includes(keyword);
+        
+        r.style.display = isMatch ? "" : "none";
+        r.classList.remove("found-highlight");
+        
+        if(isMatch && keyword.length > 0){
+            visibleCount++;
+            lastVisibleRow = r;
+        }
+    });
+
+    if(visibleCount === 1 && lastVisibleRow && !isScanning) {
+        lastVisibleRow.classList.add("found-highlight");
+        lastVisibleRow.querySelector("input").focus();
+    }
+}
+
+/* ===== BARCODE SCANNING ===== */
+function toggleScan(){
+    if(isScanning) {
+        stopScan();
+        return;
+    }
+    
+    readerContainer.style.display = "block";
+    
+    if(!document.getElementById("scan-line-overlay")) {
+        const line = document.createElement("div");
+        line.id = "scan-line-overlay";
+        line.className = "scanner-line";
+        document.getElementById("reader").appendChild(line);
+    }
+
+    html5QrCode = new Html5Qrcode("reader");
+    
+    const config = { 
+        fps: 60, 
+        qrbox: function(viewfinderWidth, viewfinderHeight) {
+            let minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            let qrboxSize = Math.floor(minEdge * 0.7);
+            return { width: qrboxSize, height: qrboxSize };
+        },
+        aspectRatio: 1.0
+    };
+    
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        config,
+        onScanSuccess,
+        onScanFailure
+    ).then(() => {
+        isScanning = true;
+        btnScan.innerText = "❌ Stop";
+        btnScan.classList.add("active");
+        
+        if(window.innerWidth <= 768) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }).catch(err => {
+        showToast("❌ Kamera gagal");
+        readerContainer.style.display = "none";
+    });
+}
+
+function onScanSuccess(decodedText) {
+    // Jika sedang cooldown, abaikan scan
+    if(isCooldown) return;
+
+    // Mainkan Suara
+    try {
+        beepSound.currentTime = 0;
+        beepSound.play();
+    } catch(e){ console.log("Audio blocked"); }
+
+    const searchInput = document.getElementById("search");
+    searchInput.value = decodedText;
+    filterTable();
+    
+    const visibleRows = [...tbody.querySelectorAll("tr")].filter(r => r.style.display !== "none");
+    
+    if(visibleRows.length === 1){
+        const row = visibleRows[0];
+        const inputFisik = row.querySelector("input");
+        
+        // Tambah nilai +1
+        let currentVal = parseInt(inputFisik.value) || 0;
+        inputFisik.value = currentVal + 1;
+        calc(inputFisik);
+        
+        // Highlight
+        row.classList.remove("found-highlight");
+        void row.offsetWidth; 
+        row.classList.add("found-highlight");
+        
+        showToast(`✅ ${decodedText} (+1)`);
+        if(navigator.vibrate) navigator.vibrate(100);
+        
+        // === AKTIFKAN COOLDOWN 3 DETIK ===
+        activateCooldown(3);
+
+    } else if(visibleRows.length > 1) {
+        showToast(`⚠️ Ketemu ${visibleRows.length} part`);
+    } else {
+        showToast(`❌ Part tidak ada`);
+    }
+}
+
+function onScanFailure(error) { }
+
+// === FUNGSI COOLDOWN ===
+function activateCooldown(seconds) {
+    isCooldown = true;
+    
+    // Tambah visual overlay "Tunggu..."
+    const readerDiv = document.getElementById("reader");
+    const overlay = document.createElement("div");
+    overlay.id = "cooldown-overlay";
+    overlay.className = "cooldown-overlay";
+    overlay.innerText = "Tunggu..."; // Teks default
+    readerDiv.appendChild(overlay);
+
+    // Update tombol
+    btnScan.innerText = `⏳ ${seconds}s`;
+    btnScan.classList.add("cooldown");
+
+    let remaining = seconds;
+    const interval = setInterval(() => {
+        remaining--;
+        if(overlay.isConnected) overlay.innerText = `${remaining}s`;
+        btnScan.innerText = `⏳ ${remaining}s`;
+
+        if(remaining <= 0) {
+            clearInterval(interval);
+            isCooldown = false;
+            if(overlay.isConnected) overlay.remove();
+            btnScan.innerText = "❌ Stop";
+            btnScan.classList.remove("cooldown");
+        }
+    }, 1000);
+}
+
+function stopScan() {
+    if(html5QrCode && isScanning) {
+        html5QrCode.stop().then(() => {
+            readerContainer.style.display = "none";
+            const line = document.getElementById("scan-line-overlay");
+            if(line) line.remove();
+            const overlay = document.getElementById("cooldown-overlay");
+            if(overlay) overlay.remove();
             
-        }, 100);
+            btnScan.innerText = "📷 Scan";
+            btnScan.classList.remove("active");
+            btnScan.classList.remove("cooldown");
+            isScanning = false;
+            isCooldown = false; // Reset status
+        }).catch(err => console.error(err));
     }
+}
+
+/* ===== STORAGE ===== */
+function saveStorage() {
+    const data = [];
+    tbody.querySelectorAll("tr").forEach(r => {
+        data.push({
+            part: r.cells[1].innerText,
+            desc: r.cells[2].innerText,
+            qty: r.cells[3].innerText,
+            fisik: r.cells[4].querySelector("input").value
+        });
+    });
+    localStorage.setItem(storageKey, JSON.stringify(data));
+    localStorage.setItem("tanggal_mod", document.getElementById("tanggal").value);
+}
+
+function manualSave() {
+    saveStorage();
+    showToast("💾 Data disimpan!");
+}
+
+function loadStorage() {
+    const data = JSON.parse(localStorage.getItem(storageKey) || "[]");
+    tbody.innerHTML = "";
+    if(data.length > 0) {
+        data.forEach((d, i) => addRow(i + 1, d.part, d.desc, d.qty, d.fisik));
+    }
+}
+
+function clearAll() {
+    if(confirm("Hapus semua data opname?")) {
+        localStorage.removeItem(storageKey);
+        localStorage.removeItem("tanggal_mod");
+        location.reload();
+    }
+}
+
+/* ===== EXPORT EXCEL ===== */
+function exportExcel() {
+    if(tbody.rows.length === 0) return showToast("Data kosong!");
     
-    // === UTILITIES ===
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+    const d = document.getElementById("tanggal").value;
+    const data = [["LAPORAN STOCK OPNAME"], ["Tanggal", d], [], ["NO", "PART", "Deskripsi Part", "QTY", "QTY FISIK", "SELISIH", "KET"]];
     
-    function showToast(msg, type = 'info') {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        
-        const bgColors = {
-            success: 'bg-green-600',
-            error: 'bg-red-600',
-            info: 'bg-stone-800'
-        };
-        
-        toast.className = `toast ${bgColors[type]} text-white px-4 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2`;
-        
-        const icons = {
-            success: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
-            error: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
-            info: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
-        };
-        
-        toast.innerHTML = `${icons[type]}<span>${msg}</span>`;
-        container.appendChild(toast);
-        
-        setTimeout(() => {
-            toast.style.opacity = '0';
-            toast.style.transform = 'translateX(100%)';
-            toast.style.transition = 'all 0.3s ease';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
+    tbody.querySelectorAll("tr").forEach(r => {
+        const s = parseInt(r.querySelector(".badge").innerText);
+        let ket = s === 0 ? "MATCH" : (s > 0 ? "PLUS" : "MINUS");
+        data.push([
+            r.cells[0].innerText, r.cells[1].innerText, r.cells[2].innerText,
+            r.cells[3].innerText, r.cells[4].querySelector("input").value,
+            r.querySelector(".badge").innerText, ket
+        ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Opname");
+    XLSX.writeFile(wb, `Opname-${d}.xlsx`);
+}
+
+/* ===== EXPORT PDF ===== */
+function exportPDF() {
+    if(tbody.rows.length === 0) return showToast("Data kosong!");
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const d = document.getElementById("tanggal").value;
+    
+    doc.setFontSize(18);
+    doc.setTextColor(31, 41, 55);
+    doc.text("Laporan Stock Opname", 14, 18);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text("Tanggal : " + d, 14, 26);
+    
+    const rows = [];
+    tbody.querySelectorAll("tr").forEach(r => {
+        rows.push([
+            r.cells[0].innerText, r.cells[1].innerText, r.cells[2].innerText.substring(0, 35),
+            r.cells[3].innerText, r.cells[4].querySelector("input").value,
+            r.querySelector(".badge").innerText
+        ]);
+    });
+
+    doc.autoTable({
+        startY: 32,
+        head: [["NO", "PART", "Deskripsi Part", "QTY", "QTY FISIK", "SELISIH"]],
+        body: rows,
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [220, 38, 38], textColor: '#fff', fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [249, 250, 251] }
+    });
+    
+    doc.save(`Opname-${d}.pdf`);
+}
+
+/* ===== TOAST ===== */
+function showToast(msg) {
+    const t = document.getElementById("toast");
+    t.innerText = msg;
+    t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 3000);
+}
 </script>
 
 </body>
